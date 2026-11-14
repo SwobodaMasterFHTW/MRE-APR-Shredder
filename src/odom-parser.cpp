@@ -89,7 +89,7 @@ int main() {
 
     // Read data and convert to output structs
 
-    for(int i = 0; i < 1000; ++i) {
+    while(true) {
         // Receive response
         int bytes_received = read(sock, buffer, BUFFER_SIZE - 1);
 
@@ -132,7 +132,7 @@ int main() {
     // Data cleanup and parsing
     // TBD
 
-    // Error handling/Disconnection handling
+    // Error and Exception handling/Disconnection handling
     // TBD
 
     close(sock);
