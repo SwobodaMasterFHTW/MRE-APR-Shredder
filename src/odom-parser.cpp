@@ -50,11 +50,6 @@ int main() {
     // send(sock, message, strlen(message), 0);
 
     // Receive response
-    for (int i = 0; i < count; i++)
-    {
-        /* code */
-    }
-    
 
     int bytes_received = read(sock, buffer, BUFFER_SIZE - 1);
     if (bytes_received > 0) {
