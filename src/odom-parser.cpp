@@ -10,11 +10,15 @@
 #include <arpa/inet.h>
 
 // TCP connection settings
-constexpr int PORT = 9997;
+constexpr int PORT = 9998;
 constexpr int BUFFER_SIZE = 1024;
 const std::string IP = "192.168.100.50";
 
 int main() {
+    //
+    // TCP connection setup
+    //
+
     int sock = 0;
     sockaddr_in server_addr{};
     char buffer[BUFFER_SIZE] = {0};
@@ -46,10 +50,24 @@ int main() {
     // send(sock, message, strlen(message), 0);
 
     // Receive response
+    for (int i = 0; i < count; i++)
+    {
+        /* code */
+    }
+    
+
     int bytes_received = read(sock, buffer, BUFFER_SIZE - 1);
     if (bytes_received > 0) {
         std::cout << "Server response: " << buffer << "\n";
     }
+
+    // Data cleanup and parsing
+    // TBD
+
+
+
+    // Error handling/Disconnection handling
+    // TBD
 
     close(sock);
     return 0;
