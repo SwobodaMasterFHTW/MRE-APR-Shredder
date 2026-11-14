@@ -50,7 +50,9 @@ double find_entry(std::string message, std::string key1, std::string key2) {
     size_t end = message.find_first_of(",}", start);
 
     // Extract the value
-    double x = std::stod(message.substr(start, end - start));
+    double entry = std::stod(message.substr(start, end - start));
+
+    return entry;
 }
 
 
