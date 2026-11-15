@@ -1,0 +1,13 @@
+# Build outputs
+control
+test_tools
+
+# Logs
+*.log
+sink.log
+
+# VS Code
+.vscode/
+
+# System files
+.DS_Store
