@@ -5,11 +5,14 @@
 // Description sample code: Simple TCP client using sockets. Connects to server, sends message, and receives response.
 
 #include <iostream>
-#include <array>
 #include <vector>
 #include <string>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <semaphore.h>
+#include <unistd.h>
 
 // TCP connection settings
 constexpr int PORT = 9998;
@@ -19,21 +22,21 @@ const std::string IP = "192.168.100.50";
 // Output data structure
 struct Pose
 {
-    std::array<double, 3> position = {0,0,0};
-    std::array<double, 4> orientation = {0,0,0,0};
+    double position[3] = {0,0,0};
+    double orientation[4] = {0,0,0,0};
 };
 
 struct Twist
 {
-    std::array<double, 3> linear = {0,0,0};
-    std::array<double, 3> angular = {0,0,0};
+    double linear[3] = {0,0,0};
+    double angular[3] = {0,0,0};
 };
 
 struct OdomData
 {
     Pose pose;
     Twist twist;
-    std::string frame_id = "odom";
+    char frame_id[32] = "odom";
 };
 
 // Function to extract pose and twist data from TCI json message
@@ -78,14 +81,54 @@ int main() {
         return 1;
     }
 
-    // Connect to server
+    // Connect to TCP server
     if (connect(sock, (sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         perror("Odometry Error: TCP connect failed\n");
         return 1;
     }
 
-    // Create output struct
-    OdomData* current_odom = new OdomData;
+    // Create shared memory
+    int shm_fd = shm_open(
+        "/odom",
+        O_CREAT | O_RDWR,
+        0666
+    );
+
+    // Error flag
+    if (shm_fd < 0) {
+        std::cout << "Odometry Error: Shared memory failed" << "\n";
+        return 1;
+    }
+
+    ftruncate(shm_fd, sizeof(OdomData));
+
+    // Map shared memory
+    OdomData* current_odom = (OdomData*)mmap(
+        nullptr,
+        sizeof(OdomData),
+        PROT_READ | PROT_WRITE,
+        MAP_SHARED,
+        shm_fd,
+        0
+    );
+
+    // Create semaphore
+    sem_t* mutex = sem_open(
+        "/odom_sem",
+        O_CREAT,
+        0666,
+        1
+    );
+
+    // Error flags
+    if (mutex == SEM_FAILED) {
+        std::cout << "Odometry Error: Semaphore failed to open" << "\n";
+        return 1;
+    } 
+    else if (current_odom == MAP_FAILED) {
+        std::cout << "Odometry Error: Mapping of shared memory failed" << "\n";
+        return 1;
+    }
 
     // Read data and convert to output structs
     while(true) {
@@ -94,6 +137,9 @@ int main() {
 
         if(bytes_received > 0) {
             std::string message(buffer, bytes_received);
+
+            // Lock shared memory via semaphore
+            sem_wait(mutex);
 
             // Populate Odom struct
             current_odom->pose.position[0] = find_entry(message, "\"position\":","\"x\":");
@@ -113,6 +159,9 @@ int main() {
             current_odom->twist.angular[1] = find_entry(message, "\"angular\":","\"y\":");
             current_odom->twist.angular[2] = find_entry(message, "\"angular\":","\"z\":");
 
+            // Unlock shared memory via semaphore
+            sem_post(mutex);
+
             // Print Pose data
             std::cout << "Odometry Position: X " << current_odom->pose.position[0]
                         << ", Y " << current_odom->pose.position[1]
@@ -122,9 +171,16 @@ int main() {
                         << ", Y " << current_odom->pose.orientation[1]
                         << ", Z " << current_odom->pose.orientation[2] 
                         << ", W " << current_odom->pose.orientation[3] << "\n";
+            
+            // Wait for new signal
+            usleep(100000);
+        }
+        else if (bytes_received == 0){
+            std::cout << "Odometry Error: Server disconnected" << "\n";
+            break;
         }
         else {
-            std::cout << "Odometry Error: No bytes received during read" << "\n";
+            std::cout << "Odometry Error: Read failed" << "\n";
         }
     }
 
@@ -132,8 +188,8 @@ int main() {
     // TBD
 
     // Final Cleanup
+    sem_close(mutex);
     close(sock);
-    delete current_odom;
 
     return 0;
 }
