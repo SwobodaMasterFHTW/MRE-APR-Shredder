@@ -1,3 +1,9 @@
+// Sample odometry data reader
+// Severin Swoboda
+
+// Using shared memory and semaphores for data race condition
+// Functionality has been tested, works in tandem with the odom-parser.cpp program
+
 #include <iostream>
 #include <fcntl.h>
 #include <sys/mman.h>

@@ -15,9 +15,9 @@
 #include <unistd.h>
 
 // TCP connection settings
-constexpr int PORT = 9998;
+constexpr int PORT = 5000;
 constexpr int BUFFER_SIZE = 1024;
-const std::string IP = "192.168.100.50";
+const std::string IP = "127.0.0.1";
 
 // Output data structure
 struct Pose
