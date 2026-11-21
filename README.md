@@ -9,3 +9,6 @@
     Reasoning: C++ and Python, better workflow
 * Shared memory solution: semaphore library
 * Ubuntu 24.04 as operating system
+
+## Current questions:
+* General architecture? How do we start the overall process/individual programs? How do they communicate? What if one stops?

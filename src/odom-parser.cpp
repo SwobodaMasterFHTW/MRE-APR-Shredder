@@ -14,30 +14,14 @@
 #include <semaphore.h>
 #include <unistd.h>
 
+// Include the odometry data struct
+#include "odom_data.h"
+
+
 // TCP connection settings
 constexpr int PORT = 5000;
 constexpr int BUFFER_SIZE = 1024;
 const std::string IP = "127.0.0.1";
-
-// Output data structure
-struct Pose
-{
-    double position[3] = {0,0,0};
-    double orientation[4] = {0,0,0,0};
-};
-
-struct Twist
-{
-    double linear[3] = {0,0,0};
-    double angular[3] = {0,0,0};
-};
-
-struct OdomData
-{
-    Pose pose;
-    Twist twist;
-    char frame_id[32] = "odom";
-};
 
 // Function to extract pose and twist data from TCI json message
 double find_entry(std::string message, std::string key1, std::string key2) {

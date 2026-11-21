@@ -10,25 +10,9 @@
 #include <semaphore.h>
 #include <unistd.h>
 
-// Output data structure
-struct Pose
-{
-    double position[3] = {0,0,0};
-    double orientation[4] = {0,0,0,0};
-};
+// Include the odometry data struct
+#include "odom_data.h"
 
-struct Twist
-{
-    double linear[3] = {0,0,0};
-    double angular[3] = {0,0,0};
-};
-
-struct OdomData
-{
-    Pose pose;
-    Twist twist;
-    char frame_id[32] = "odom";
-};
 
 int main() {
 
