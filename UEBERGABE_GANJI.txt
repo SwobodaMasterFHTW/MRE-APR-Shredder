@@ -1,0 +1,17 @@
+REINE REMOTE CONTROL (kein TCP, kein ROS, kein Sensor)
+
+Einbindung: Tastatur::Aktualisieren() -> GetStatus() -> Steuerung::Aktualisieren(Status) -> Steuerung::GetBefehl().
+Fahrbefehl enthaelt Fahrgeschwindigkeit (m/s) und Drehgeschwindigkeit (rad/s).
+Die Gruppe muss den gelieferten Fahrbefehl an ihre bestehende Motor-/TCP-Schnittstelle uebergeben.
+main.cpp zeigt eine stille Beispielschleife; ohne Anschluss an die Motorschnittstelle faehrt kein Roboter.
+Q beendet. Shift links schnell; Shift rechts langsam. H/F sind Platzhalter.
+Ubuntu: Tastatur.cpp liest /dev/input/event*. Erfordert Linux-Zugriffsrechte und reagiert auch ausserhalb des Terminalfokus; vor Motoranbindung Sicherheitsabschaltung/Fokus pruefen.
+
+FEHLERDIAGNOSE: Nur bei echten Fehlern erscheint eine Meldung mit [Steuereinheit/...].
+Keine Status-/Geschwindigkeitsausgaben im Normalbetrieb.
+Bei Ubuntu werden Fehler beim Oeffnen/Lesen des Tastaturgeraets ueber std::cerr gemeldet.
+Windows: wenn kein Konsolenfenster erkennbar ist, wird die Tastatur gesperrt und einmal gewarnt.
+Ein fehlender TCP-Anschluss ist KEIN Fehler dieses Moduls; die Gruppe integriert Fahrbefehl selbst.
+
+
+Anm. Sevi: Es braucht mindestens noch ein Makefile, generell ist es derzeit recht "zersplittert".
