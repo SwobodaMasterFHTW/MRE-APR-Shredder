@@ -25,7 +25,7 @@ int main() {
 
     // Error flag
     if (shm_fd < 0) {
-        std::cout << "*Read Error*: Shared memory failed" << "\n";
+        std::cerr << "*Read Error*: Shared memory failed\n";
         return 1;
     }
 
@@ -47,7 +47,7 @@ int main() {
 
     // Error flag
     if (mutex == SEM_FAILED) {
-        std::cout << "*Read Error*: Semaphore failed to open" << "\n";
+        std::cerr << "*Read Error*: Semaphore failed to open\n";
         return 1;
     }
 
@@ -68,18 +68,33 @@ int main() {
         OdomPose.pose.orientation[2] = odom->pose.orientation[2];
         OdomPose.pose.orientation[3] = odom->pose.orientation[2];
 
+        // Update status parameters
+        OdomPose.active = odom->active;
+
+        // Only update message info for valid data
+        if(OdomPose.active) {
+            OdomPose.timestamp = odom->timestamp;
+            OdomPose.sequence_counter = odom->sequence_counter;
+        }
+
         // Unlock shared memory via semaphore
         sem_post(mutex);
 
         // Print new Pose data
-        std::cout << "Reader Position: X " << odom->pose.position[0]
-                    << ", Y " << odom->pose.position[1]
-                    << ", Z " << odom->pose.position[2] << "\n";
+        if(OdomPose.active) {
+            std::cout << "*Reader* Position: X " << odom->pose.position[0]
+                        << ", Y " << odom->pose.position[1]
+                        << ", Z " << odom->pose.position[2] << "\n";
 
-        std::cout << "Reader Orientation: X " << odom->pose.orientation[0]
-                    << ", Y " << odom->pose.orientation[1]
-                    << ", Z " << odom->pose.orientation[2] 
-                    << ", W " << odom->pose.orientation[3] << "\n";
+            std::cout << "*Reader* Orientation: X " << odom->pose.orientation[0]
+                        << ", Y " << odom->pose.orientation[1]
+                        << ", Z " << odom->pose.orientation[2] 
+                        << ", W " << odom->pose.orientation[3] << "\n";
+        }
+        else {
+            // Check 'active' variable before proceeding with operation!
+            std::cerr << "*Reader* Error: Odometry data not active\n";
+        }
 
         // Wait for new signal
         usleep(100000);
