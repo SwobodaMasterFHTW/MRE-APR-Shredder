@@ -1,0 +1,60 @@
+import math
+import tkinter as tk
+
+
+size = 500  #window size
+scale = 50  #pixel per meter 
+
+# visible map == size/scale
+
+def read_pose():
+    #dummy x,y,theta
+    return 0.0 , 0.0, 0.0
+
+
+def draw_map(canvas, x,y,yaw):
+    canvas.delete("all")
+    center = size/2
+    half_span = center/scale
+
+    for world_x in range(math.ceil(x-half_span), math.floor(x+half_span)+1):
+        px = center + (world_x-x)*scale
+
+        color ="#aaaaaa" if world_x == 0 else "#e5e5e5"
+        canvas.create_line(px, 0, px, size, fill=color)
+
+    for world_y in range(math.ceil(y-half_span), math.floor(y+half_span)+1):
+            py = center - (world_y-y)*scale
+    
+            color ="#000000" if world_y == 0 else "#000000"
+            canvas.create_line(0, py, size, py, fill=color)
+
+
+    #circle for robot position
+    canvas.create_oval(center-8, center-8, center+8, center+8, fill ="#1677cc", outline="")
+    #create vector for orientation
+    canvas.create_line(center, center, center+30*math.cos(yaw), center-30*math.sin(yaw), fill="#0000cc", width=3, arrow=tk.LAST)
+
+def main():
+    window = tk.Tk()
+    window.title("map")
+    window.resizable(False, False)
+
+
+
+    pose_text = tk.StringVar()
+    tk.Label(window, textvariable=pose_text, font=("Arial", 13)).pack(pady=10)
+    canvas = tk.Canvas(window, width=size, height=size, bg="white", highlightthickness=0)
+    canvas.pack(padx=10)
+    tk.Label(window, text="X right | Y up | Grid: 1m").pack(pady=8)
+
+    def update():
+        x,y,yaw = read_pose()
+        pose_text.set(f"X: {x: .2f} m Y: {y: .2f} m Orientaiton: {math.degrees(yaw): .1f} deg")
+        draw_map(canvas,x,y,yaw)
+        window.after(100, update)
+
+    update()
+    window.mainloop()
+
+main()
