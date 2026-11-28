@@ -69,3 +69,7 @@ Testing/
 
 .vscode
 /src/odom-parser
+
+# Odom-test files
+src/mock-port.py
+src/odom-reader.cpp
