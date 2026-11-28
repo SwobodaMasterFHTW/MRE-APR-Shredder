@@ -14,7 +14,6 @@
 #include <time.h>         // nanosleep
 #include "shared_data.h" //Shared Memory Contract
 #include <csignal>       
-#include <sys/select.h>   //Lesen von console input   
 
 volatile sig_atomic_t g_stop = 0;
 
@@ -39,8 +38,10 @@ double kb = 0.3; //Proportionaler Faktor für Winkelgeschwindigkeit
 //Semaphore und Shared Memory Variablen
 sem_t* mutex_odom = nullptr; //Semaphore für Shared Memory Bereich Odom
 sem_t* mutex_goal = nullptr; //Semaphore für Shared Memory Bereich Goal
+sem_t* mutex_manual = nullptr; //Semaphore für Shared Memory Bereich Manual
 OdomData* shm_odom = nullptr; //Shared Memory Bereich Odom
 GoalPose* shm_goal = nullptr; //Shared Memory Bereich Goal
+ManualControl* shm_manual = nullptr; //Shared Memory Bereich Manual
 
 //TCP/IP Variablen
 int TCPsock = -1; //Socket für TCP/IP Verbindung zum Roboter
@@ -92,20 +93,20 @@ void ReadGoalPose(GoalPose* shm, sem_t* sem) {
     X_GOAL = shm->position[0];
     Y_GOAL = shm->position[1];
     THETA_GOAL = shm->orientation[0];
-    GOAL_VALID = shm->valid;
-    
+    GOAL_VALID = shm->Goal_enable;
+    manual_mode = shm->Manual_enable;
+
     sem_post(sem); //Freigeben des Shared Memory Bereichs, um anderen Prozessen Zugriff zu ermöglichen
 
 }
 
-void ReadManualControl(GoalPose* shm, sem_t* sem) {
+void ReadManualControl(ManualControl* shm, sem_t* sem) {
 
     sem_wait(sem); //Sprerren des Shared Memory Bereichs, um gleichzeitigen Zugriff zu verhindern
 
     //Lese die Daten aus dem Shared Memory Bereich
     manual_v = shm->Manual_linear_x;
     manual_w = shm->Manual_angular_z;
-    manual_mode = (shm->Manual_enable == 1);
     
     sem_post(sem); //Freigeben des Shared Memory Bereichs, um anderen Prozessen Zugriff zu ermöglichen
 
@@ -157,12 +158,6 @@ void on_signal(int sig) {
     g_stop = 1;
 }
 
-void checkKeyboard(){
-
-
-
-}
-
 int opensemaphore() {
 
 
@@ -172,6 +167,7 @@ int opensemaphore() {
     
     mutex_odom = sem_open("/odom_sem", 0);   // 0 = existiert schon
     mutex_goal = sem_open("/goal_sem", 0);   // 0 = existiert schon
+    mutex_manual = sem_open("/manual_sem", 0); // 0 = existiert schon
 
     //Fehlermeldung, wenn sem_open fehlschlägt und return
     if (mutex_odom == SEM_FAILED) {
@@ -184,9 +180,15 @@ int opensemaphore() {
     return 1;
     }
 
+    if (mutex_manual == SEM_FAILED) {
+    perror("sem_open /manual_sem");
+    return 1;
+    }
+
     //Nummer SHM
     int fd_odom = shm_open("/odom", O_RDWR, 0666);
     int fd_goal = shm_open("/goal", O_RDWR, 0666);
+    int fd_manual = shm_open("/manual", O_RDWR, 0666);
 
     //Fehlermeldung, wenn shm_open fehlschlägt und return
     if (fd_odom == -1) {
@@ -200,9 +202,16 @@ int opensemaphore() {
         return 1;
     }   
 
+        if (fd_manual == -1) {
+        perror("shm_open /manual");
+
+        return 1;
+    }   
+
     //Mappe den Shared Memory Bereich in den Adressraum des Prozesses
     shm_odom = (OdomData*) mmap(NULL, sizeof(OdomData), PROT_READ , MAP_SHARED, fd_odom, 0);
     shm_goal = (GoalPose*) mmap(NULL, sizeof(GoalPose), PROT_READ , MAP_SHARED, fd_goal, 0);
+    shm_manual = (ManualControl*) mmap(NULL, sizeof(ManualControl), PROT_READ , MAP_SHARED, fd_manual, 0);
 
     
     //Fehlermeldung, wenn mmap fehlschlägt und return
@@ -219,11 +228,20 @@ int opensemaphore() {
         close(fd_odom);
         close(fd_goal);
         return 1;
+    }   
+    
+    if (shm_manual == MAP_FAILED) {
+        perror("mmap /manual");
+        close(fd_odom);
+        close(fd_goal);
+        close(fd_manual);
+        return 1;
     }
 
 
     close(fd_odom); //Schließe den File Descriptor, da er nicht mehr benötigt wird
     close(fd_goal); //Schließe den File Descriptor, da er nicht mehr benötigt wird
+    close(fd_manual); //Schließe den File Descriptor, da er nicht mehr benötigt wird
     //-------------------------------------------------------
 
     return 0;
@@ -273,13 +291,10 @@ int main() {
     //Schleife
     //-------------------------------------------------------
     while(!g_stop) {
-
-    //Tasteingaben prüfen
-    checkKeyboard();
     
     Readodometry(shm_odom, mutex_odom); //Lese die aktuelle Position und Orientierung des Roboters aus dem Shared Memory
     ReadGoalPose(shm_goal, mutex_goal); //Lese die aktuelle Zielposition und Orientierung des Roboters aus dem Shared Memory
-    ReadManualControl(shm_goal, mutex_goal); //Lese die manuelle Steuerung des Roboters aus dem Shared Memory
+    ReadManualControl(shm_manual, mutex_manual); //Lese die manuelle Steuerung des Roboters aus dem Shared Memory
     
     //manualControl(TCPsock); //Manuelle Steuerung des Roboters über die Konsole
 
@@ -314,8 +329,10 @@ int main() {
     close(TCPsock);                        //Schließe die TCP/IP Verbindung zum Roboter
     munmap(shm_odom, sizeof(OdomData));      //Entferne die Zuordnung des Shared Memory Bereichs aus dem Adressraum des Prozesses
     munmap(shm_goal, sizeof(GoalPose)); //Entferne die Zuordnung des Shared Memory Bereichs aus dem Adressraum des Prozesses
+    munmap(shm_manual, sizeof(ManualControl)); //Entferne die Zuordnung des Shared Memory Bereichs aus dem Adressraum des Prozesses
     sem_close(mutex_odom);                   //Freigeben des Shared Memory Bereichs, um anderen Prozessen Zugriff zu ermöglichen
     sem_close(mutex_goal);              //Freigeben des Shared Memory Bereichs, um anderen Prozessen Zugriff zu ermöglichen
+    sem_close(mutex_manual);              //Freigeben des Shared Memory Bereichs, um anderen Prozessen Zugriff zu ermöglichen
 
 
     return 0;

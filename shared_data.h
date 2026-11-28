@@ -7,11 +7,12 @@
 #define SHM_GOAL_NAME     "/goal"
 #define SHM_MANUAL_NAME   "/manual"
 #define SHM_CMDSTAT_NAME  "/cmdstat"
-#define SEM_ODOM_NAME     "/sem_odom"
-#define SEM_GOAL_NAME     "/sem_goal"
-#define SEM_MANUAL_NAME   "/sem_manual"
-#define SEM_CMDSTAT_NAME  "/sem_cmdstat"
+#define SEM_ODOM_NAME     "/odom_sem"
+#define SEM_GOAL_NAME     "/goal_sem"
+#define SEM_MANUAL_NAME   "/manual_sem"
+#define SEM_CMDSTAT_NAME  "/cmdstat_sem"
 #define SHM_FORMAT_VERSION 1u
+
 
 //Odom
 struct Pose
@@ -39,9 +40,16 @@ struct GoalPose
     double position[2] = {0,0};// x, y
     double orientation[1] = {0}; // only yaw is used
     uint8_t Goal_enable = 0; // 0 = invalid, 1 = valid werden daten geschrieben
-    
-    //Manual Control
-    double Manual_linear_x = 0;
-    double Manual_angular_z = 0;
     uint8_t Manual_enable = 0; // 0 = disable, 1 = enable manual control
+
 };
+
+struct ManualControl
+{
+
+    double Manual_linear_x = 0; 
+    double Manual_angular_z = 0;
+
+};
+
+
