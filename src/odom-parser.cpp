@@ -22,12 +22,12 @@
 volatile std::sig_atomic_t running = 1;
 
 // TCP connection settings
-constexpr int PORT = 5000;
+constexpr int PORT = 9998;
 constexpr int BUFFER_SIZE = 1024;
-const std::string IP = "127.0.0.1";
+const std::string IP = "192.168.100.50"; // 192.168.100.50
 
 // Overwrite in case of shutdown
-void signal_handler(int signal) {
+void signal_handler(int) {
     running = 0;
 }
 
@@ -125,7 +125,11 @@ int main() {
         return 1;
     }
 
-    ftruncate(shm_fd, sizeof(OdomData));
+    if (ftruncate(shm_fd, sizeof(OdomData)) == -1) {
+        std::cerr << "Odometry Error: Shared memory sizing failed\n";
+        close(shm_fd);
+        return 1;
+    }
 
     // Map shared memory
     OdomData* current_odom = (OdomData*)mmap(

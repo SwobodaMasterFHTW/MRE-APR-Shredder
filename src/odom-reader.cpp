@@ -4,6 +4,8 @@
 // Using shared memory and semaphores for data race condition
 // Functionality has been tested, works in tandem with the odom-parser.cpp program
 
+// DELETE before final submission
+
 #include <iostream>
 #include <fcntl.h>
 #include <sys/mman.h>

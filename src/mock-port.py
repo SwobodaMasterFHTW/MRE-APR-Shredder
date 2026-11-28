@@ -4,6 +4,8 @@
 # Pushes a standard odometry data entry message to a mock port
 # Used for testing data transfers without the physical TurtleBot3
 
+# DELETE before final submission
+
 import socket
 import time
 import math
