@@ -32,33 +32,16 @@ struct OdomData
     Twist twist;
     char frame_id[32] = "odom";
 };
+
 //Goal Pose
 struct GoalPose
 {
     double position[2] = {0,0};// x, y
     double orientation[1] = {0}; // only yaw is used
-    uint8_t valid = 0; // 0 = invalid, 1 = valid werden daten geschrieben
+    uint8_t Goal_enable = 0; // 0 = invalid, 1 = valid werden daten geschrieben
+    
+    //Manual Control
+    double Manual_linear_x = 0;
+    double Manual_angular_z = 0;
+    uint8_t Manual_enable = 0; // 0 = disable, 1 = enable manual control
 };
-
-/*
-struct OdomShared {
-    uint32_t version; uint32_t _pad0; uint64_t stamp_ns;
-    double   x, y, theta, vx, wz;
-    uint8_t  valid; uint8_t _pad1[7];
-};
-struct GoalShared {
-    uint32_t version; uint32_t _pad0; uint64_t stamp_ns; uint64_t seq;
-    double   x, y, theta, tol_xy, tol_theta;
-    uint8_t  valid, cancel; uint8_t _pad1[6];
-};
-struct ManualShared {
-    uint32_t version; uint32_t _pad0; uint64_t stamp_ns;
-    double   linear_x, angular_z;
-    uint8_t  enable; uint8_t _pad1[7];
-};
-struct CmdStatShared {
-    uint32_t version; uint32_t _pad0; uint64_t stamp_ns; uint64_t goal_seq;
-    double   linear_x, angular_z, rho, alpha, beta, distance_to_goal, heading_error;
-    uint8_t  mode, goal_reached; uint8_t _pad1[6];
-};
-*/

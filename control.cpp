@@ -98,6 +98,19 @@ void ReadGoalPose(GoalPose* shm, sem_t* sem) {
 
 }
 
+void ReadManualControl(GoalPose* shm, sem_t* sem) {
+
+    sem_wait(sem); //Sprerren des Shared Memory Bereichs, um gleichzeitigen Zugriff zu verhindern
+
+    //Lese die Daten aus dem Shared Memory Bereich
+    manual_v = shm->Manual_linear_x;
+    manual_w = shm->Manual_angular_z;
+    manual_mode = (shm->Manual_enable == 1);
+    
+    sem_post(sem); //Freigeben des Shared Memory Bereichs, um anderen Prozessen Zugriff zu ermöglichen
+
+}
+
 //Odometry zu p, alpha, beta
 Deltaresult DeltaTarget(double x, double y, double theta, double x_goal, double y_goal, double theta_goal) {
 
@@ -260,17 +273,34 @@ int main() {
     //Schleife
     //-------------------------------------------------------
     while(!g_stop) {
+
+    //Tasteingaben prüfen
+    checkKeyboard();
     
     Readodometry(shm_odom, mutex_odom); //Lese die aktuelle Position und Orientierung des Roboters aus dem Shared Memory
     ReadGoalPose(shm_goal, mutex_goal); //Lese die aktuelle Zielposition und Orientierung des Roboters aus dem Shared Memory
+    ReadManualControl(shm_goal, mutex_goal); //Lese die manuelle Steuerung des Roboters aus dem Shared Memory
     
     //manualControl(TCPsock); //Manuelle Steuerung des Roboters über die Konsole
 
     MotionResult cmd = MotionCommands(DeltaTarget(X, Y, THETA, X_GOAL, Y_GOAL, THETA_GOAL), kp, ka, kb, Vmax, Wmax);
-
-    if (GOAL_VALID == 0) { cmd.v = 0; cmd.w = 0; } //Wenn keine gültigen Daten vorhanden sind, setze v und w auf 0
     
-    sendCommands(TCPsock, cmd.v, cmd.w); //Befehle an Roboter senden Über TCP/IP
+    if (GOAL_VALID == 0) { cmd.v = 0; cmd.w = 0; } //Wenn keine gültigen Daten vorhanden sind, setze v und w auf 0
+
+    if(manual_mode){
+
+        //Manuelle Steuerung des Roboters über die Konsole
+        sendCommands(TCPsock, manual_v, manual_w); //Befehle an Roboter senden Über TCP/IP
+
+    }
+    else{
+
+        //Autonome Steuerung des Roboters über die berechneten Befehle
+        sendCommands(TCPsock, cmd.v, cmd.w); //Befehle an Roboter senden Über TCP/IP
+
+    }
+    
+
     
     usleep(50000); //50ms warten
 
