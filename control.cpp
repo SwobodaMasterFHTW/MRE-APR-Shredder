@@ -13,7 +13,8 @@
 #include <unistd.h>       // close mman
 #include <time.h>         // nanosleep
 #include "shared_data.h" //Shared Memory Contract
-#include <csignal>          
+#include <csignal>       
+#include <sys/select.h>   //Lesen von console input   
 
 volatile sig_atomic_t g_stop = 0;
 
@@ -26,6 +27,7 @@ double THETA = 0; //Winkel Roboter
 double X_GOAL = 0; //X position Ziel
 double Y_GOAL = 0; //Y position Ziel
 double THETA_GOAL = 0; //Winkel Ziel
+uint8_t GOAL_VALID = 0; //Werden Daten geschrieben? 0 = nein, 1 = ja
 
 double Vmax = 1.0; //Maximale Geschwindigkeit
 double Wmax = 1.0; //Maximale Winkelgeschwindigkeit
@@ -33,6 +35,19 @@ double Wmax = 1.0; //Maximale Winkelgeschwindigkeit
 double kp = 0.3; //Proportionaler Faktor für lineare Geschwindigkeit
 double ka = 1.0; //Proportionaler Faktor für Winkelgeschwindigkeit
 double kb = 0.3; //Proportionaler Faktor für Winkelgeschwindigkeit
+
+//Semaphore und Shared Memory Variablen
+sem_t* mutex_odom = nullptr; //Semaphore für Shared Memory Bereich Odom
+sem_t* mutex_goal = nullptr; //Semaphore für Shared Memory Bereich Goal
+OdomData* shm_odom = nullptr; //Shared Memory Bereich Odom
+GoalPose* shm_goal = nullptr; //Shared Memory Bereich Goal
+
+//TCP/IP Variablen
+int TCPsock = -1; //Socket für TCP/IP Verbindung zum Roboter
+
+bool   manual_mode  = false;   // false = autonom, true = manuell
+double manual_v     = 0.0;     // m/s
+double manual_w     = 0.0;     // rad/s
 
 constexpr int  BufferSize = 128; //Größe des Buffers für die Kommunikation mit dem Roboter
 
@@ -64,6 +79,20 @@ void Readodometry(OdomData* shm, sem_t* sem) {
     Y = shm->pose.position[1];
     THETA = 2.0 * atan2(shm->pose.orientation[2],
                     shm->pose.orientation[3]);
+    
+    sem_post(sem); //Freigeben des Shared Memory Bereichs, um anderen Prozessen Zugriff zu ermöglichen
+
+}
+
+void ReadGoalPose(GoalPose* shm, sem_t* sem) {
+
+    sem_wait(sem); //Sprerren des Shared Memory Bereichs, um gleichzeitigen Zugriff zu verhindern
+
+    //Lese die Daten aus dem Shared Memory Bereich
+    X_GOAL = shm->position[0];
+    Y_GOAL = shm->position[1];
+    THETA_GOAL = shm->orientation[0];
+    GOAL_VALID = shm->valid;
     
     sem_post(sem); //Freigeben des Shared Memory Bereichs, um anderen Prozessen Zugriff zu ermöglichen
 
@@ -115,49 +144,85 @@ void on_signal(int sig) {
     g_stop = 1;
 }
 
-int main() {
-    
-    signal(SIGINT, on_signal);    // Ctrl+C
-    signal(SIGTERM, on_signal);   // kill-Befehl
+void checkKeyboard(){
+
+
+
+}
+
+int opensemaphore() {
+
+
 
     //Shared Memory und Semaphore initialisieren
     //-------------------------------------------------------
     
-    sem_t* mutex = sem_open("/odom_sem", 0);   // 0 = existiert schon
+    mutex_odom = sem_open("/odom_sem", 0);   // 0 = existiert schon
+    mutex_goal = sem_open("/goal_sem", 0);   // 0 = existiert schon
 
-    if (mutex == SEM_FAILED) {
-    perror("sem_open");
+    //Fehlermeldung, wenn sem_open fehlschlägt und return
+    if (mutex_odom == SEM_FAILED) {
+    perror("sem_open /odom_sem");
+    return 1;
+    }
+
+    if (mutex_goal == SEM_FAILED) {
+    perror("sem_open /goal_sem");
     return 1;
     }
 
     //Nummer SHM
-    int fd = shm_open("/odom", O_RDWR, 0666);
+    int fd_odom = shm_open("/odom", O_RDWR, 0666);
+    int fd_goal = shm_open("/goal", O_RDWR, 0666);
 
     //Fehlermeldung, wenn shm_open fehlschlägt und return
-    if (fd == -1) {
-        perror("shm_open");
+    if (fd_odom == -1) {
+        perror("shm_open /odom");
         return 1;
     }
+
+    if (fd_goal == -1) {
+        perror("shm_open /goal");
+
+        return 1;
+    }   
 
     //Mappe den Shared Memory Bereich in den Adressraum des Prozesses
-    OdomData* shm = (OdomData*) mmap(NULL, sizeof(OdomData), PROT_READ , MAP_SHARED, fd, 0);
+    shm_odom = (OdomData*) mmap(NULL, sizeof(OdomData), PROT_READ , MAP_SHARED, fd_odom, 0);
+    shm_goal = (GoalPose*) mmap(NULL, sizeof(GoalPose), PROT_READ , MAP_SHARED, fd_goal, 0);
+
     
     //Fehlermeldung, wenn mmap fehlschlägt und return
-    if (shm == MAP_FAILED) {
-        perror("mmap");
-        close(fd);
+    if (shm_odom == MAP_FAILED) {
+        perror("mmap /odom");
+        close(fd_odom);
+        close(fd_goal);
         return 1;
     }
 
-    close(fd); //Schließe den File Descriptor, da er nicht mehr benötigt wird
-    //-------------------------------------------------------
+
+    if (shm_goal == MAP_FAILED) {
+        perror("mmap /goal");
+        close(fd_odom);
+        close(fd_goal);
+        return 1;
+    }
 
 
-    //TCP/IP Verbindung zum Roboter aufbauen
+    close(fd_odom); //Schließe den File Descriptor, da er nicht mehr benötigt wird
+    close(fd_goal); //Schließe den File Descriptor, da er nicht mehr benötigt wird
     //-------------------------------------------------------
-        // TCP/IP Verbindung zum Roboter aufbauen
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock < 0) { perror("socket"); return -1; } // return -1 bei Fehler
+
+    return 0;
+
+}
+
+int openTCP() {
+
+
+    // TCP/IP Verbindung zum Roboter aufbauen
+    TCPsock = socket(AF_INET, SOCK_STREAM, 0);
+    if (TCPsock < 0) { perror("socket"); return -1; } // return -1 bei Fehler
 
     // Roboter Adresse vorbereiten
     sockaddr_in addr;
@@ -167,34 +232,60 @@ int main() {
     inet_pton(AF_INET, ROBOT_IP, &addr.sin_addr);   //zu binäre Form konvertieren
     
    //Handshake
-    if (connect(sock, (sockaddr*)&addr, sizeof(addr)) < 0) { 
+    if (connect(TCPsock, (sockaddr*)&addr, sizeof(addr)) < 0) { 
     perror("connect");
-    close(sock);
+    close(TCPsock);
     return -1;
     }
+
+    return 0;
+
+
+
+
+}
+
+
+int main() {   
+
+    signal(SIGINT, on_signal);    // Ctrl+C
+    signal(SIGTERM, on_signal);   // kill-Befehl
+    
+    //Initialisierung
     //-------------------------------------------------------
+    if (opensemaphore() != 0) return 1;
+    if (openTCP() != 0) return 1;
+
 
     //Schleife
     //-------------------------------------------------------
     while(!g_stop) {
-        
-        
-    Readodometry(shm, mutex); //Lese die aktuelle Position und Orientierung des Roboters aus dem Shared Memory
-
+    
+    Readodometry(shm_odom, mutex_odom); //Lese die aktuelle Position und Orientierung des Roboters aus dem Shared Memory
+    ReadGoalPose(shm_goal, mutex_goal); //Lese die aktuelle Zielposition und Orientierung des Roboters aus dem Shared Memory
+    
+    //manualControl(TCPsock); //Manuelle Steuerung des Roboters über die Konsole
 
     MotionResult cmd = MotionCommands(DeltaTarget(X, Y, THETA, X_GOAL, Y_GOAL, THETA_GOAL), kp, ka, kb, Vmax, Wmax);
-    sendCommands(sock, cmd.v, cmd.w); //Befehle an Roboter senden Über TCP/IP
+
+    if (GOAL_VALID == 0) { cmd.v = 0; cmd.w = 0; } //Wenn keine gültigen Daten vorhanden sind, setze v und w auf 0
+    
+    sendCommands(TCPsock, cmd.v, cmd.w); //Befehle an Roboter senden Über TCP/IP
     
     usleep(50000); //50ms warten
 
     }
+    //-------------------------------------------------------
+
+
 
     //Cleanup
     //-------------------------------------------------------
-    close(sock);                        //Schließe die TCP/IP Verbindung zum Roboter
-    munmap(shm, sizeof(OdomData));      //Entferne die Zuordnung des Shared Memory Bereichs aus dem Adressraum des Prozesses
-    sem_close(mutex);                   //Freigeben des Shared Memory Bereichs, um anderen Prozessen Zugriff zu ermöglichen
-    
+    close(TCPsock);                        //Schließe die TCP/IP Verbindung zum Roboter
+    munmap(shm_odom, sizeof(OdomData));      //Entferne die Zuordnung des Shared Memory Bereichs aus dem Adressraum des Prozesses
+    munmap(shm_goal, sizeof(GoalPose)); //Entferne die Zuordnung des Shared Memory Bereichs aus dem Adressraum des Prozesses
+    sem_close(mutex_odom);                   //Freigeben des Shared Memory Bereichs, um anderen Prozessen Zugriff zu ermöglichen
+    sem_close(mutex_goal);              //Freigeben des Shared Memory Bereichs, um anderen Prozessen Zugriff zu ermöglichen
 
 
     return 0;

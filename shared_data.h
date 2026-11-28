@@ -13,7 +13,7 @@
 #define SEM_CMDSTAT_NAME  "/sem_cmdstat"
 #define SHM_FORMAT_VERSION 1u
 
-
+//Odom
 struct Pose
 {
     double position[3] = {0,0,0};
@@ -32,6 +32,14 @@ struct OdomData
     Twist twist;
     char frame_id[32] = "odom";
 };
+//Goal Pose
+struct GoalPose
+{
+    double position[2] = {0,0};// x, y
+    double orientation[1] = {0}; // only yaw is used
+    uint8_t valid = 0; // 0 = invalid, 1 = valid werden daten geschrieben
+};
+
 /*
 struct OdomShared {
     uint32_t version; uint32_t _pad0; uint64_t stamp_ns;
